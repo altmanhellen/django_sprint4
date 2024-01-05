@@ -9,8 +9,7 @@ from .models import Post, Comment
 
 
 class AuthorOrAdminMixin(UserPassesTestMixin):
-    """
-    Проверка, что пользователь является
+    """Проверка, что пользователь является
     автором объекта или администратором.
     """
 
@@ -52,8 +51,7 @@ class AuthorOrAdminMixin(UserPassesTestMixin):
 
 
 class AuthorMixin:
-    """
-    Устанавливаем пользователя, отправившего форму,
+    """Устанавливаем пользователя, отправившего форму,
     в качестве автора объекта.
     """
 
@@ -63,9 +61,7 @@ class AuthorMixin:
 
 
 class CommentMixin:
-    """
-    Миксин для общих операций с моделью Comment.
-    """
+    """Миксин для общих операций с моделью Comment."""
 
     model = Comment
     form_class = CommentForm
