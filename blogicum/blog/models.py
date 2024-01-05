@@ -2,6 +2,7 @@ from django.db import models
 from django.contrib.auth import get_user_model
 
 from core.models import PublishedModel
+from blog.querysets import PersonManager
 
 
 User = get_user_model()
@@ -60,7 +61,7 @@ class Post(PublishedModel):
                                  null=True,
                                  verbose_name='Категория')
     image = models.ImageField('Фото', blank=True)
-    objects = models.Manager()
+    objects = PersonManager()
 
     class Meta:
         verbose_name = 'публикация'
@@ -85,4 +86,6 @@ class Comment(PublishedModel):
     author = models.ForeignKey(User, on_delete=models.CASCADE)
 
     class Meta:
+        verbose_name = 'комментарий'
+        verbose_name_plural = 'Комментарии'
         ordering = ('created_at',)
