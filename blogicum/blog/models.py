@@ -2,7 +2,7 @@ from django.db import models
 from django.contrib.auth import get_user_model
 
 from core.models import PublishedModel
-from blog.querysets import PersonManager 
+from blog.querysets import PersonManager
 
 
 User = get_user_model()
