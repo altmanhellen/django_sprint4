@@ -2,7 +2,7 @@ from django.db import models
 from django.contrib.auth import get_user_model
 
 from core.models import PublishedModel
-from blog.querysets import PersonManager
+from blog.querysets import PersonManager 
 
 
 User = get_user_model()
@@ -82,6 +82,7 @@ class Comment(PublishedModel):
         Post,
         on_delete=models.CASCADE,
         related_name='comments',
+        verbose_name='Публикация'
     )
     author = models.ForeignKey(User, on_delete=models.CASCADE)
 

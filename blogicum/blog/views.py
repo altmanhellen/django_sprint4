@@ -1,9 +1,10 @@
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.views.generic.detail import SingleObjectMixin
 from django.contrib.auth.models import User
 from django.core.exceptions import PermissionDenied
 from django.http import Http404
 from django.shortcuts import get_object_or_404
-from django.urls import reverse_lazy, reverse
+from django.urls import reverse
 from django.utils import timezone
 from django.views.generic import (
     ListView,
@@ -15,7 +16,9 @@ from django.views.generic import (
 
 from .forms import CommentForm, PostForm, ProfileForm
 from .models import Category, Post
-from .utils import AuthorOrAdminMixin, AuthorMixin, CommentMixin
+from .authorship import AuthorOrAdminMixin, AuthorMixin
+from .comment_handling import CommentMixin
+from .post_handling import PostAccessMixin, PostContextData
 
 
 PAGINATION = 10
@@ -25,7 +28,7 @@ class IndexListView(ListView):
     model = Post
     form_class = PostForm
     template_name = 'blog/index.html'
-    queryset = Post.objects.get_post_list()
+    queryset = Post.objects.get_published_posts()
     paginate_by = PAGINATION
 
 
@@ -52,6 +55,7 @@ class PostUpdateView(
     AuthorOrAdminMixin,
     UpdateView
 ):
+
     model = Post
     form_class = PostForm
     template_name = 'blog/create.html'
@@ -65,25 +69,26 @@ class PostDeleteView(
     LoginRequiredMixin,
     AuthorMixin,
     AuthorOrAdminMixin,
+    PostContextData,
     DeleteView
 ):
-    model = Post
-    form_class = PostForm
-    template_name = 'blog/detail.html'
-    success_url = reverse_lazy('blog:profile')
-    pk_url_kwarg = 'post_id'
 
-    def dispatch(self, request, *args, **kwargs):
-        self.object = self.get_object()
-        if self.object.author != request.user:
-            raise PermissionDenied
-        if 'delete' in request.path:
-            return self.delete(request, *args, **kwargs)
-        return super().dispatch(request, *args, **kwargs)
+    model = Post
+    template_name = 'blog/create.html'
+    pk_url_kwarg = 'post_id'
+    raise_exception = True
+
+    def test_func(self):
+        post = self.get_object()
+        return post.author == self.request.user
+
+    def handle_no_permission(self):
+        raise PermissionDenied
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['post'] = self.get_object()
+        post = self.get_object()
+        context['form'] = PostForm(instance=post)
         return context
 
     def get_success_url(self):
@@ -93,28 +98,19 @@ class PostDeleteView(
         )
 
 
-class PostDetailView(DetailView):
+class PostDetailView(
+    PostAccessMixin,
+    PostContextData,
+    DetailView
+):
     model = Post
     form_class = PostForm
     template_name = 'blog/detail.html'
     pk_url_kwarg = 'post_id'
 
-    def get_queryset(self):
-        post_id = self.kwargs.get(self.pk_url_kwarg)
-        return Post.objects.filter(pk=post_id)
-
-    def get_object(self, queryset=None):
-        obj = super().get_object(queryset=queryset)
-        if not obj.is_published and self.request.user != obj.author:
-            raise Http404('Страница не найдена')
-        return obj
-
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        post = self.get_object()
         context['form'] = CommentForm()
-        context['comments'] = post.comments.all()
-        context['post_id'] = post.id
         return context
 
 
@@ -141,13 +137,9 @@ class ProfilePostListView(ListView):
 
     def get_queryset(self):
         self.user = self.get_user()
-        if (
-            self.request.user.is_authenticated
-            and self.request.user == self.user
-        ):
-            return Post.objects.filter(author=self.user)
-        else:
-            return Post.objects.get_post_list().filter(author=self.user)
+        if self.request.user == self.user:
+            return Post.objects.get_all_posts(author=self.user)
+        return Post.objects.get_published_posts(author=self.user)
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -162,25 +154,26 @@ class ProfilePostListView(ListView):
         return get_object_or_404(User, username=username)
 
 
-class CategoryPostListView(ListView):
+class CategoryPostListView(SingleObjectMixin, ListView):
     model = Post
-    template_name = 'blog/category.html'
-    context_object_name = 'category'
     paginate_by = PAGINATION
+    template_name = 'blog/category.html'
+    slug_url_kwarg = 'category_slug'
+    slug_field = 'slug'
+
+    def get_object(self, queryset=None):
+        category = super().get_object(queryset=queryset)
+        if not category.is_published:
+            raise Http404("Категория неопубликована.")
+        return category
 
     def get_queryset(self):
-        posts = Post.objects.get_post_list().all()
-        category_slug = self.kwargs.get('category_slug')
-        self.category = get_object_or_404(
-            Category,
-            slug=category_slug,
-            is_published=True
-        )
-        return posts.filter(category=self.category)
+        self.object = self.get_object(queryset=Category.objects.all())
+        return Post.objects.get_published_posts(category=self.object)
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['category'] = self.category
+        context['category'] = self.object
         return context
 
 
@@ -188,11 +181,18 @@ class CommentCreateView(
     CommentMixin,
     LoginRequiredMixin,
     AuthorMixin,
+    PostAccessMixin,
     CreateView
 ):
 
     def form_valid(self, form):
-        form.instance.post = get_object_or_404(Post, pk=self.kwargs['post_id'])
+        try:
+            post = Post.objects.get(pk=self.kwargs.get('post_id'))
+        except Post.DoesNotExist:
+            raise Http404(
+                "Вы не можете добавлять комментарии к несуществующему посту."
+            )
+        form.instance.post = post
         return super().form_valid(form)
 
 

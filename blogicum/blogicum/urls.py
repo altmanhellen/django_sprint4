@@ -21,11 +21,10 @@ from django.contrib.auth.forms import UserCreationForm
 from django.urls import include, path, reverse_lazy
 from django.views.generic.edit import CreateView
 
-urlpatterns = [
-    path("admin/", admin.site.urls),
-    path('auth/', include('django.contrib.auth.urls')),
+auth_patterns = [
+    path('', include('django.contrib.auth.urls')),
     path(
-        'auth/registration/',
+        'registration/',
         CreateView.as_view(
             template_name='registration/registration_form.html',
             form_class=UserCreationForm,
@@ -33,6 +32,11 @@ urlpatterns = [
         ),
         name='registration',
     ),
+]
+
+urlpatterns = [
+    path('admin/', admin.site.urls),
+    path('auth/', include(auth_patterns)),
     path('pages/', include('pages.urls')),
     path('', include('blog.urls')),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
