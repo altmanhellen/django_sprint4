@@ -1,9 +1,8 @@
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.views.generic.detail import SingleObjectMixin
 from django.contrib.auth.models import User
-from django.core.exceptions import PermissionDenied
 from django.http import Http404
-from django.shortcuts import get_object_or_404
+from django.shortcuts import render, get_object_or_404, redirect
 from django.urls import reverse
 from django.utils import timezone
 from django.views.generic import (
@@ -13,6 +12,7 @@ from django.views.generic import (
     DeleteView,
     DetailView
 )
+from django.contrib.auth.decorators import login_required
 
 from .forms import CommentForm, PostForm, ProfileForm
 from .models import Category, Post
@@ -77,13 +77,6 @@ class PostDeleteView(
     template_name = 'blog/create.html'
     pk_url_kwarg = 'post_id'
     raise_exception = True
-
-    def test_func(self):
-        post = self.get_object()
-        return post.author == self.request.user
-
-    def handle_no_permission(self):
-        raise PermissionDenied
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -164,7 +157,7 @@ class CategoryPostListView(SingleObjectMixin, ListView):
     def get_object(self, queryset=None):
         category = super().get_object(queryset=queryset)
         if not category.is_published:
-            raise Http404("Категория неопубликована.")
+            raise Http404('Категория неопубликована.')
         return category
 
     def get_queryset(self):
@@ -177,23 +170,31 @@ class CategoryPostListView(SingleObjectMixin, ListView):
         return context
 
 
-class CommentCreateView(
-    CommentMixin,
-    LoginRequiredMixin,
-    AuthorMixin,
-    PostAccessMixin,
-    CreateView
-):
+@login_required
+def create_comment(request, post_id):
+    post = get_object_or_404(Post, pk=post_id)
 
-    def form_valid(self, form):
-        try:
-            post = Post.objects.get(pk=self.kwargs.get('post_id'))
-        except Post.DoesNotExist:
-            raise Http404(
-                "Вы не можете добавлять комментарии к несуществующему посту."
-            )
-        form.instance.post = post
-        return super().form_valid(form)
+    published_post = (
+        post.is_published
+        and post.pub_date <= timezone.now()
+        and post.category.is_published
+    )
+
+    if post.author != request.user and not published_post:
+        raise Http404('Вы не можете комментировать этот пост.')
+
+    if request.method == 'POST':
+        form = CommentForm(request.POST)
+        if form.is_valid():
+            comment = form.save(commit=False)
+            comment.post = post
+            comment.author = request.user
+            comment.save()
+            return redirect('blog:post_detail', post_id=post.pk)
+    else:
+        form = CommentForm()
+
+    return render(request, 'blog/detail.html', {'form': form, 'post': post})
 
 
 class CommentUpdateView(

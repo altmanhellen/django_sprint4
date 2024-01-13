@@ -1,20 +1,20 @@
 from django.http import Http404
 from django.views.generic.detail import SingleObjectMixin
-from django.utils import timezone
 
 
 class PostAccessMixin(SingleObjectMixin):
 
     def get_object(self, queryset=None):
         self.post = super().get_object(queryset=queryset)
+        if queryset is None:
+            queryset = self.model.objects
         if (
-            not self.post.is_published or self.post.pub_date > timezone.now()
-        ) and (
-                (
-                    not self.request.user.is_superuser
-                ) and (
-                    self.post.author != self.request.user
-                )
+            (self.post not in queryset.get_published_posts())
+            and (
+                not self.request.user.is_superuser
+            ) and (
+                self.post.author != self.request.user
+            )
         ):
             raise Http404('Страница не найдена')
         return self.post

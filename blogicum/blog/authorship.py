@@ -14,24 +14,16 @@ class AuthorOrAdminMixin(UserPassesTestMixin):
 
     def test_func(self):
         obj = self.get_object()
-        return obj.author == (
-            self.request.user or self.request.user.is_superuser
+        return (
+            obj.author == self.request.user or self.request.user.is_superuser
         )
 
     def handle_no_permission(self):
         obj = self.get_object()
         post_id = self.kwargs.get('post_id')
 
-        if not self.request.user.is_authenticated:
-            return redirect(
-                reverse(
-                    'blog:post_detail',
-                    kwargs={'post_id': post_id}
-                )
-            )
-
         if post_id is None:
-            raise PermissionDenied("Запрашиваемый пост не найден.")
+            raise PermissionDenied('Запрашиваемый пост не найден.')
         if isinstance(obj, Post) or isinstance(obj, Comment):
             return redirect(
                 reverse('blog:post_detail',
