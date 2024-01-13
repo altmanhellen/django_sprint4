@@ -9,7 +9,7 @@ class PostAccessMixin(SingleObjectMixin):
         if queryset is None:
             queryset = self.model.objects
         if (
-            (self.post not in queryset.get_published_posts())
+            (self.post not in queryset.get_all_posts().is_published())
             and (
                 not self.request.user.is_superuser
             ) and (

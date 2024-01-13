@@ -28,7 +28,7 @@ class IndexListView(ListView):
     model = Post
     form_class = PostForm
     template_name = 'blog/index.html'
-    queryset = Post.objects.get_published_posts()
+    queryset = Post.objects.get_all_posts().is_published()
     paginate_by = PAGINATION
 
 
@@ -132,7 +132,7 @@ class ProfilePostListView(ListView):
         self.user = self.get_user()
         if self.request.user == self.user:
             return Post.objects.get_all_posts(author=self.user)
-        return Post.objects.get_published_posts(author=self.user)
+        return Post.objects.get_all_posts(author=self.user).is_published()
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -162,7 +162,7 @@ class CategoryPostListView(SingleObjectMixin, ListView):
 
     def get_queryset(self):
         self.object = self.get_object(queryset=Category.objects.all())
-        return Post.objects.get_published_posts(category=self.object)
+        return Post.objects.get_all_posts(category=self.object).is_published()
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
