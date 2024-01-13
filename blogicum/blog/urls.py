@@ -38,7 +38,6 @@ posts_patterns = [
     path(
         'comment/',
         views.create_comment,
-        # views.CommentCreateView.as_view(),
         name='add_comment'
     ),
 ]
